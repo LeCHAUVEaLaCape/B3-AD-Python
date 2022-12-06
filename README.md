@@ -2,11 +2,14 @@
 
 - [ ] 1 Serveur
 	- [ ] ecoute sur un port
+    - [ ] logs
 - [ ] 2 Tools
 	- [ ] connexion à un port
+    - [ ] authentification
 - [ ] 3 Database
-	- [ ] relier serveur et database
+	- [ ] intégration de la database au serveur
     - [ ] Tools :
         - [ ] ajout
         - [ ] suppression
         - [ ] modification
+        - [ ] authentification
