@@ -1,8 +1,12 @@
 # B3-AD-Python
 
-- [ ] 1 serveur
+- [ ] 1 Serveur
 	- [ ] ecoute sur un port
-- [ ] 2 tools
+- [ ] 2 Tools
 	- [ ] connexion à un port
-- [ ] 3 database
+- [ ] 3 Database
 	- [ ] relier serveur et database
+    - [ ] Tools :
+        - [ ] ajout
+        - [ ] suppression
+        - [ ] modification
