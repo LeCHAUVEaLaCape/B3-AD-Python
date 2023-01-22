@@ -1,10 +1,10 @@
 # B3-AD-Python
 
 - [ ] 1 Serveur
-	- [ ] ecoute sur un port
+	- [x] ecoute sur un port
     - [ ] logs
 - [ ] 2 Tools
-	- [ ] connexion à un port
+	- [x] connexion à un port
     - [ ] authentification
 - [ ] 3 Database
 	- [ ] intégration de la database au serveur

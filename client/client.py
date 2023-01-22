@@ -9,7 +9,7 @@ socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 socket.connect((hote, port))
 print("Connection on {}".format(port))
 
-socket.send(str.encode("stop"))
+socket.send(str.encode("user:mdp:stop"))
 
 print("Close")
 socket.close()
