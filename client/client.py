@@ -11,7 +11,7 @@ print("Connection on {}".format(port))
 # commandes :
 #   - 's' (stop) pour arrêter le serveur
 #   - 'm' (modifier) pour modifier quelque chose(p,u)
-client.send(str.encode("admin:test:m,p"))
-
+client.send(str.encode("admin:test:c,"))
+print(client.recv(255))
 print("Close")
 client.close()
