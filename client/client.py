@@ -8,8 +8,10 @@ port = 15555
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect((hote, port))
 print("Connection on {}".format(port))
-
-client.send(str.encode("admin:test:stop"))
+# commandes :
+#   - 's' (stop) pour arrêter le serveur
+#   - 'm' (modifier) pour modifier quelque chose(p,u)
+client.send(str.encode("admin:test:m,p"))
 
 print("Close")
 client.close()
