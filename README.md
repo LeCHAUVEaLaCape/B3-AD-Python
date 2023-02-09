@@ -5,13 +5,13 @@
     - [ ] logs
 - [ ] 2 Tools
 	- [x] connexion à un port
-    - [ ] authentification
+    - [x] authentification
     - [ ] hasher les mots de passe
 - [ ] 3 Database
-	- [ ] intégration de la database au serveur
+	- [x] intégration de la database au serveur
     - [ ] sécuriser la connexion serveur AD et redis
     - [ ] Tools :
         - [ ] ajout
         - [ ] suppression
         - [ ] modification
-        - [ ] authentification
+        - [x] authentification
