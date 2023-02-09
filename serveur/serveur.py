@@ -1,11 +1,16 @@
 import threading
 import socket
+import redis
 
-SERVEUR_THREADS = []
+hoteBDD = input()
+motDePasseBDD = input()
 
-
-def auth(user,pw):
-    return user == "user" and pw == "mdp"
+# authentification
+def auth(user,motDePasse):
+    database = redis.Redis(connection_pool=redis.ConnectionPool(host=hoteBDD, port=6379, db=0,password=motDePasseBDD))
+    identifiants = database.hgetall("comptes")
+    
+    return user in identifiants and identifiants[user] == motDePasse
 
 class ClientThread(threading.Thread):
 
@@ -18,24 +23,28 @@ class ClientThread(threading.Thread):
         print("[+] Nouveau thread pour %s %s" % (self.ip, self.port, ))
 
     def run(self):
-
-        commandes = self.clientsocket.recv(255).decode("utf-8").split(":")
-
-        # si l'utilisateur s'est identifié
-        if auth(commandes[0],commandes[1]):
-            for cmd in commandes[2:]:
-                print(cmd)
+        # 'commandes' est une liste avec :
+        #   index 0 comme utilisateur
+        #   index 1 comme mot de passe hashé
+        #   et les commandes
+        requete = self.clientsocket.recv(255).split(b":")
+        
+        # authentification
+        if auth(requete[0],requete[1]):
+            # exécution des commandes
+            for cmd in requete[2:]:
                 match cmd:
-                    case "stop":
+                    # 'stop' commande pour arrêter le serveur
+                    case b"stop":
                         self.stop_event.set()
 
 
 
 def listen_thread(stop_event):
-    # Set up the server to listen for incoming connections
+    # pour écouter les connexions entrantes
     serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     
-    # set un timeout de 2 secondes
+    # timeout de 2 secondes
     serveur.settimeout(2)
     serveur.bind(('', 15555))
     serveur.listen()

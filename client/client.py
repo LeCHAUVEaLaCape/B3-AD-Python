@@ -5,11 +5,11 @@ import socket
 hote = "localhost"
 port = 15555
 
-socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-socket.connect((hote, port))
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect((hote, port))
 print("Connection on {}".format(port))
 
-socket.send(str.encode("user:mdp:stop"))
+client.send(str.encode("admin:test:stop"))
 
 print("Close")
-socket.close()
+client.close()
