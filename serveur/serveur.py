@@ -1,45 +1,64 @@
 import threading
 import socket
 import redis
-import time
-from getpass4 import getpass
+import getpass
 
-CLIENT_THREADS = []
+# demande l'adresse IP de la base de donnée
+hoteBDD = input("IP hôte de la base de donnée ? ")
+# demande le mot de passe de la base de donnée
+motDePasseBDD = getpass.getpass("mot de passe de la base de donnée : ")
+
+# vérifie la connexion à la base de donnée
+if not redis.StrictRedis(host=hoteBDD, port=6379, password=motDePasseBDD).ping():
+    print("Echec de la tentative de connexion à la base de donnée.")
+    exit(1)
+
+# connexion à la base de donnée
+DATABASE = redis.Redis(connection_pool=redis.ConnectionPool(host=hoteBDD, port=6379, db=0, password=motDePasseBDD))
 
 def auth(user, motDePasse):
-    """Authentification"""
-    database = redis.Redis(connection_pool=redis.ConnectionPool(host=hoteBDD, port=6379, db=0, password=motDePasseBDD))
-    identifiants = database.hgetall("comptes")
+    """Authentification du client."""
+    identifiants = DATABASE.hgetall("comptes,admins")
 
     return user in identifiants and identifiants[user] == motDePasse
 
 def read(nomUtilisateur):
-    database = redis.Redis(connection_pool=redis.ConnectionPool(host=hoteBDD, port=6379, db=0, password=motDePasseBDD))
-    # récupére seulement les noms d'utilisateur
-    admins = database.hkeys("admins")
-    comptes = database.hkeys("comptes")
-    # resultat qui sera retourné
-    resultat = ""
+    """Récupère tous les utilisateurs pour les renvoyer au client."""
+
+    # Récupère seulement les noms d'utilisateur
+    admins = DATABASE.hkeys("admins")
+    comptes = DATABASE.hkeys("comptes")
+
+    # Vérifie si l'utilisateur est un admin
     if nomUtilisateur in admins:
         resultat = b'\n'.join(admins)
-    resultat += b'\n'.join(admins)
+    else:
+        resultat = b'\n'.join(comptes)
+
     return resultat
 
-def creer(currentUser,args):
-    database = redis.Redis(connection_pool=redis.ConnectionPool(host=hoteBDD, port=6379, db=0, password=motDePasseBDD))
-    admins = database.hkeys("admins")
-    comptes = database.hkeys("comptes")
-    # vérifie si l'utilisateur qui à utilisé cette commande est un admin
+def create(currentUser,args):
+    """Créer un ou des utilisateurs dans la base de donnée"""
+    admins = DATABASE.hkeys("admins")
+    comptes = DATABASE.hkeys("comptes")
+    # vérifie si l'utilisateur est un admin
     if currentUser not in admins :
         return "Vous n'êtes pas administrateur."
     # résultat qui sera retourné
     resultat = ""
     # ajoute chaque utilisateur de args dans l'annuaire
     for user in args:
+        # vérifie si l'utilisateur existe déja
         if user in comptes:
             resultat += f"{user} existe déjà.\n"
         else:
-            resultat += ""
+            # récupére les comptes déjà existant
+            comptesExistant = DATABASE.hgetall('comptes')
+            # ajoute le nouveau compte avec un mot de passe par défaut
+            comptesExistant[user] = "test"
+            # ajoute le nouveau dictionnaire de compte à la base de donnée
+            DATABASE.hmset("comptes",comptesExistant)
+    return resultat
 
 class ClientThread(threading.Thread):
 
@@ -52,19 +71,19 @@ class ClientThread(threading.Thread):
         print("[+] Nouveau thread pour %s %s" % (self.ip, self.port, ))
 
     def run(self):
-        # 'commandes' est une liste avec :
-        #   index 0 -> utilisateur
-        #   index 1 -> mot de passe hashé
-        #   et les commandes
+        # récupére le message du client
         requete = self.clientsocket.recv(255).split(b":")
+        # l'index 0 correspond au nom d'utilisateur du client
         self.nomUtilisateur = requete[0]
+        # l'index 1 correspond au mot de passe du client
         self.motDePasse = requete[1]
-        # authentification
+        # le client doit être authentifié que le serveur utilise ces commandes
         if auth(self.nomUtilisateur, self.motDePasse):
             # exécution des commandes
             for cmdArgs in requete[2:]:
-                args = cmdArgs.split(b',')[1:]
+                # sépare la commande et ses arguments
                 cmd = cmdArgs.split(b',')[0]
+                args = cmdArgs.split(b',')[1:]
 
                 match cmd:
                     # pour arrêter le serveur
@@ -78,12 +97,13 @@ class ClientThread(threading.Thread):
                         self.clientsocket.send(read(self.nomUtilisateur))
                     # pour créer
                     case b'c':
-                        print(args)
-                        self.clientsocket.send(creer(self.nomUtilisateur,args))
+                        self.clientsocket.send(create(self.nomUtilisateur,args))
                         
 
-def listen_thread(stop_event):
-    """écoute les connexions entrantes"""
+def main():
+    # 'stop_event' est la pour arrêter le serveur
+    stop_event = threading.Event()
+    
     # pour écouter les connexions entrantes
     serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -93,7 +113,6 @@ def listen_thread(stop_event):
     serveur.listen()
 
     while not stop_event.is_set():
-        print(len(CLIENT_THREADS))
         try:
             (clientSocket, (ip, port)) = serveur.accept()
             newthread = ClientThread(clientSocket, ip, port, stop_event)
@@ -101,19 +120,5 @@ def listen_thread(stop_event):
         except socket.timeout:
             continue
 
-
-hoteBDD = input("IP hôte de la Base de donnée ? ")
-motDePasseBDD = getpass("mot de passe de la base de donnée : ")
-
-# vérifie la connexion à la base de donnée
-redis.StrictRedis(
-        host=hoteBDD,
-        port=6379,
-        password=motDePasseBDD).ping()
-        
-# 'stop_event' est la pour arrêter le serveur
-stop_event = threading.Event()
-
-# Créer et démarre les 2 processus
-listen_thread = threading.Thread(target=listen_thread, args=(stop_event,))
-listen_thread.start()
+if __name__ == '__main__':
+    main()
