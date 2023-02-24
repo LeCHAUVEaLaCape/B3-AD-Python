@@ -1,39 +1,47 @@
 import threading
 import socket
 import redis
-import getpass
+import pickle
 
 # demande l'adresse IP de la base de donnée
 hoteBDD = input("IP hôte de la base de donnée ? ")
-# demande le mot de passe de la base de donnée
-motDePasseBDD = getpass.getpass("mot de passe de la base de donnée : ")
 
 # vérifie la connexion à la base de donnée
-if not redis.StrictRedis(host=hoteBDD, port=6379, password=motDePasseBDD).ping():
+if not redis.StrictRedis(host=hoteBDD, port=6379).ping():
     print("Echec de la tentative de connexion à la base de donnée.")
     exit(1)
 
 # connexion à la base de donnée
-DATABASE = redis.Redis(connection_pool=redis.ConnectionPool(host=hoteBDD, port=6379, db=0, password=motDePasseBDD))
+DATABASE = redis.Redis(connection_pool=redis.ConnectionPool(host=hoteBDD, port=6379, db=1,))
 
 def auth(user, motDePasse):
     """Authentification du client."""
-    identifiants = DATABASE.hgetall("comptes,admins")
+    user = user.decode('utf-8')
+    motDePasse = motDePasse.decode('utf-8')
 
-    return user in identifiants and identifiants[user] == motDePasse
+    admins = pickle.loads(DATABASE.get('admins'))
 
-def read(nomUtilisateur):
+    comptes = pickle.loads(DATABASE.get('comptes'))
+    # DEBUG
+    print("identifiants",admins,comptes)
+    print("user et pwd",user,motDePasse)
+
+    return (user in admins and admins[user] == motDePasse) or (user in comptes and comptes[user] == motDePasse)
+
+def read(nomUtilisateur,motDePasse):
     """Récupère tous les utilisateurs pour les renvoyer au client."""
+    resultat = ""
 
-    # Récupère seulement les noms d'utilisateur
-    admins = DATABASE.hkeys("admins")
-    comptes = DATABASE.hkeys("comptes")
+    # Vérifie si l'utilisateur est un administrateur
+    if isAdmin(nomUtilisateur,motDePasse):
+        resultat = "Administrateurs : \n"
+        for admin in pickle.loads(DATABASE.get('admins')):
+            resultat += f"\t{admin}\n"
 
-    # Vérifie si l'utilisateur est un admin
-    if nomUtilisateur in admins:
-        resultat = b'\n'.join(admins)
-    else:
-        resultat = b'\n'.join(comptes)
+    # Ajoute les utilisateurs
+    resultat += "Utilisateurs : \n"
+    for comptes in pickle.loads(DATABASE.get('comptes')):
+        resultat += f"\t{comptes}\n"
 
     return resultat
 
@@ -60,6 +68,13 @@ def create(currentUser,args):
             DATABASE.hmset("comptes",comptesExistant)
     return resultat
 
+def isAdmin(user,motDePasse):
+    user = user.decode('utf-8')
+    motDePasse = motDePasse.decode('utf-8')
+
+    admins = pickle.loads(DATABASE.get('admins'))
+    return user in admins and admins[user] == motDePasse
+
 class ClientThread(threading.Thread):
 
     def __init__(self, clientSocket, ip, port, stop_event):
@@ -81,20 +96,24 @@ class ClientThread(threading.Thread):
         if auth(self.nomUtilisateur, self.motDePasse):
             # exécution des commandes
             for cmdArgs in requete[2:]:
+                print(cmdArgs)
                 # sépare la commande et ses arguments
                 cmd = cmdArgs.split(b',')[0]
                 args = cmdArgs.split(b',')[1:]
-
+                print(cmd)
                 match cmd:
                     # pour arrêter le serveur
                     case b's':
-                        self.stop_event.set()
+                        if isAdmin(self.nomUtilisateur,self.motDePasse):
+                            self.stop_event.set()
+                        else:
+                            self.clientsocket.send(str.encode("Vous n'étes pas administrateur."))
                     # pour modifier
                     case b'm':
                         print("pas fini")
                     # pour lire l'annuaire
                     case b'r':
-                        self.clientsocket.send(read(self.nomUtilisateur))
+                        self.clientsocket.send(str.encode(read(self.nomUtilisateur,self.motDePasse)))
                     # pour créer
                     case b'c':
                         self.clientsocket.send(create(self.nomUtilisateur,args))
