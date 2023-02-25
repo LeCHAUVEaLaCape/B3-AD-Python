@@ -1,9 +1,7 @@
 import socket
 from tkinter import *
 
-hote = "127.0.0.1"
 port = 15555
-
 
 window = Tk()
 window.geometry('500x500+500+500')
@@ -11,6 +9,12 @@ window.title("Client")
 
 frame_main = Frame(window)
 frame_main.pack()
+
+# IP de l'hôte
+label_userName = Label(frame_main, text="Adresse IP de l'hôte : ").pack()
+ip = Entry(frame_main)
+ip.insert(0, "127.0.0.1")
+ip.pack()
 
 label_userName = Label(frame_main, text="Nom d'Utilisateur : ").pack()
 nomUtilisateur = Entry(frame_main)
@@ -27,7 +31,7 @@ def commandeHandler(utilisateur,motPasse,stop=False,read=False,creer=False,supp=
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.settimeout(2)
     try:
-        client.connect((hote, port))
+        client.connect((ip.get(), port))
         texte_sortie.delete(1.0, END)
 
         if stop:
@@ -43,7 +47,7 @@ def commandeHandler(utilisateur,motPasse,stop=False,read=False,creer=False,supp=
         elif mod:
             client.send(str.encode(utilisateur.get() + ":" + motPasse.get() + ":m:" + nouvel_Utilisateur.get() + ":" + nouveau_motDePasse.get()))
         texte_sortie.insert('end',client.recv(255))
-    except (ConnectionAbortedError,ConnectionError,ConnectionRefusedError,ConnectionResetError,TimeoutError,socket.timeout)as erreur:
+    except (OSError,ConnectionAbortedError,ConnectionError,ConnectionRefusedError,ConnectionResetError,TimeoutError,socket.timeout)as erreur:
         texte_sortie.insert('end', 'Erreur: ' + str(erreur) + '\n') 
         pass
     client.close()
