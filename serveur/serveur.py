@@ -16,15 +16,10 @@ DATABASE = redis.Redis(connection_pool=redis.ConnectionPool(host=hoteBDD, port=6
 
 def auth(user, motDePasse):
     """Authentification du client."""
-    user = user.decode('utf-8')
-    motDePasse = motDePasse.decode('utf-8')
 
     admins = pickle.loads(DATABASE.get('admins'))
 
     comptes = pickle.loads(DATABASE.get('comptes'))
-    # DEBUG
-    print("identifiants",admins,comptes)
-    print("user et pwd",user,motDePasse)
 
     return (user in admins and admins[user] == motDePasse) or (user in comptes and comptes[user] == motDePasse)
 
@@ -40,37 +35,77 @@ def read(nomUtilisateur,motDePasse):
 
     # Ajoute les utilisateurs
     resultat += "Utilisateurs : \n"
-    for comptes in pickle.loads(DATABASE.get('comptes')):
-        resultat += f"\t{comptes}\n"
+    for compte in pickle.loads(DATABASE.get('comptes')):
+        resultat += f"\t{compte}\n"
 
     return resultat
 
-def create(currentUser,args):
-    """Créer un ou des utilisateurs dans la base de donnée"""
-    admins = DATABASE.hkeys("admins")
-    comptes = DATABASE.hkeys("comptes")
+def create(currentUser,motDePasse,newUser,newUserPassword):
+    """Créer un utilisateur dans la base de donnée"""
+
     # vérifie si l'utilisateur est un admin
-    if currentUser not in admins :
+    if not isAdmin(currentUser,motDePasse) :
         return "Vous n'êtes pas administrateur."
-    # résultat qui sera retourné
-    resultat = ""
-    # ajoute chaque utilisateur de args dans l'annuaire
-    for user in args:
-        # vérifie si l'utilisateur existe déja
-        if user in comptes:
-            resultat += f"{user} existe déjà.\n"
-        else:
-            # récupére les comptes déjà existant
-            comptesExistant = DATABASE.hgetall('comptes')
-            # ajoute le nouveau compte avec un mot de passe par défaut
-            comptesExistant[user] = "test"
-            # ajoute le nouveau dictionnaire de compte à la base de donnée
-            DATABASE.hmset("comptes",comptesExistant)
-    return resultat
+    comptes = pickle.loads(DATABASE.get('comptes'))
+    # vérifie si l'utilisateur existe déja
+    if newUser in comptes:
+        return f"Le compte {newUser} existe déjà.\n"
+    else:
+        comptes[newUser] = newUserPassword
+        DATABASE.set('comptes',pickle.dumps(comptes))
+    return read(currentUser,motDePasse)
+
+def supprimer(currentUser,motDePasse,newUser):
+    """Supprime un utilisateur dans la base de donnée"""
+
+    # vérifie si l'utilisateur est un admin
+    if not isAdmin(currentUser,motDePasse) :
+        return "Vous n'êtes pas administrateur."
+    
+    comptes = pickle.loads(DATABASE.get('comptes'))
+    # vérifie si l'utilisateur existe
+    if newUser not in comptes:
+        return f"Le compte '{newUser}' n'existe pas.\n"
+    else:
+        del(comptes[newUser])
+        DATABASE.set('comptes',pickle.dumps(comptes))
+    return read(currentUser,motDePasse)
+
+def modifier(currentUser,motDePasse,newUserPassword):
+    """Modifie le mot de passe de currentUser"""
+    comptes = pickle.loads(DATABASE.get('comptes'))
+    if isAdmin(currentUser,motDePasse) :
+        comptes = pickle.loads(DATABASE.get('admins'))
+        # remplace le mot de passe
+        comptes[currentUser] = newUserPassword
+        DATABASE.set('admins',pickle.dumps(comptes))
+    elif currentUser in comptes: # vérifie si l'utilisateur existe dans les utilisateurs 'normaux'
+        # remplace le mot de passe
+        comptes[currentUser] = newUserPassword
+        DATABASE.set('comptes',pickle.dumps(comptes))
+    else:
+        return "Erreur : modification mot de passe"
+    return "Mot de passe modifié."
+
+def modUser(currentUser,motDePasse,newUser,newUserPassword):
+    """Modifie le mot de passe de newUser"""
+    # vérifie si l'utilisateur est un admin
+    if not isAdmin(currentUser,motDePasse) :
+        return "Vous n'êtes pas administrateur."
+    comptes = pickle.loads(DATABASE.get('comptes'))
+    # vérifie si l'utilisateur existe
+    if newUser not in comptes:
+        return f"Le compte '{newUser}' n'existe pas.\n"
+    # modifie le mot de passe
+    comptes[newUser] = newUserPassword
+    DATABASE.set('comptes',pickle.dumps(comptes))
+    return f"Mot de passe de {newUser} modifié."
 
 def isAdmin(user,motDePasse):
-    user = user.decode('utf-8')
-    motDePasse = motDePasse.decode('utf-8')
+    if type(user) is bytes:
+        user = user.decode('utf-8')
+    if type(motDePasse) is bytes:
+        motDePasse = motDePasse.decode('utf-8')
 
     admins = pickle.loads(DATABASE.get('admins'))
     return user in admins and admins[user] == motDePasse
@@ -89,35 +124,42 @@ class ClientThread(threading.Thread):
         # récupére le message du client
         requete = self.clientsocket.recv(255).split(b":")
         # l'index 0 correspond au nom d'utilisateur du client
-        self.nomUtilisateur = requete[0]
+        self.nomUtilisateur = requete[0].decode('utf-8')
         # l'index 1 correspond au mot de passe du client
-        self.motDePasse = requete[1]
+        self.motDePasse = requete[1].decode('utf-8')
         # le client doit être authentifié que le serveur utilise ces commandes
         if auth(self.nomUtilisateur, self.motDePasse):
-            # exécution des commandes
-            for cmdArgs in requete[2:]:
-                print(cmdArgs)
-                # sépare la commande et ses arguments
-                cmd = cmdArgs.split(b',')[0]
-                args = cmdArgs.split(b',')[1:]
-                print(cmd)
-                match cmd:
-                    # pour arrêter le serveur
-                    case b's':
-                        if isAdmin(self.nomUtilisateur,self.motDePasse):
-                            self.stop_event.set()
-                        else:
-                            self.clientsocket.send(str.encode("Vous n'étes pas administrateur."))
-                    # pour modifier
-                    case b'm':
-                        print("pas fini")
-                    # pour lire l'annuaire
-                    case b'r':
-                        self.clientsocket.send(str.encode(read(self.nomUtilisateur,self.motDePasse)))
-                    # pour créer
-                    case b'c':
-                        self.clientsocket.send(create(self.nomUtilisateur,args))
-                        
+            cmd = requete[2]
+            match cmd:
+                # pour arrêter le serveur
+                case b's':
+                    if isAdmin(self.nomUtilisateur,self.motDePasse):
+                        self.stop_event.set()
+                    else:
+                        self.clientsocket.send(str.encode("Vous n'étes pas administrateur."))
+                # Lire
+                case b'r':
+                    self.clientsocket.send(str.encode(read(self.nomUtilisateur,self.motDePasse)))
+                # Créer
+                case b'c':
+                    newUser = requete[3].decode('utf-8')
+                    newUserPassword = requete[4].decode('utf-8')
+                    self.clientsocket.send(str.encode(create(self.nomUtilisateur,self.motDePasse,newUser,newUserPassword)))
+                # Supprimer
+                case b'd':
+                    newUser = requete[3].decode('utf-8')
+                    self.clientsocket.send(str.encode(supprimer(self.nomUtilisateur,self.motDePasse,newUser)))
+                # Modifier son mot de passe
+                case b'p':
+                    newUserPassword = requete[3].decode('utf-8')
+                    self.clientsocket.send(str.encode(modifier(self.nomUtilisateur,self.motDePasse,newUserPassword)))
+                # Modifier le mot de passe d'un utilisateur
+                case b'm':
+                    newUser = requete[3].decode('utf-8')
+                    newUserPassword = requete[4].decode('utf-8')
+                    self.clientsocket.send(str.encode(modUser(self.nomUtilisateur,self.motDePasse,newUser,newUserPassword)))
+        else:
+            self.clientsocket.send(str.encode("L'authentification a échoué."))
 
 def main():
     # 'stop_event' est la pour arrêter le serveur
