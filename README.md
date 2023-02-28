@@ -7,12 +7,12 @@
 	- [x] connexion à un port
     - [x] authentification
     - [ ] hasher les mots de passe
-    - [ ] ajouter une interface utilisateur au client
+    - [x] ajouter une interface utilisateur au client
 - [ ] 3 Database
 	- [x] intégration de la database au serveur
     - [ ] sécuriser la connexion serveur AD et redis
-    - [ ] Tools :
-        - [ ] ajout
-        - [ ] suppression
-        - [ ] modification
+    - [x] Tools :
+        - [x] ajout
+        - [x] suppression
+        - [x] modification
         - [x] authentification
